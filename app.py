@@ -1,38 +1,63 @@
 import streamlit as st
-from deep_translator import GoogleTranslator
 
 # 페이지 기본 설정
-st.set_page_config(page_title="다국어 번역기", page_icon="🌐")
+st.set_page_config(page_title="급식실 자리 선택기", page_icon="🍽️")
 
-st.title("한글 다국어 번역기 🌐")
-st.write("한국어를 🇺🇸영어, 🇨🇳중국어, 🇯🇵일본어로 동시에 번역해 줍니다.")
+st.title("🍽️ 급식실 자리 선택 및 번호표 발급")
+st.write("원하는 빈자리를 선택하면 번호표가 발급됩니다!")
 
-# 사용자 입력 받기
-text_to_translate = st.text_area("번역할 한국어 텍스트를 입력하세요:", placeholder="여기에 입력...")
+# 1. 초기 데이터 설정 (session_state를 사용해 상태 저장)
+# 좌석 배치 (A~D열, 1~4번) 설정 및 번호표 카운터
+if 'seats' not in st.session_state:
+    # 모든 좌석을 'True(빈자리)'로 초기화
+    st.session_state.seats = {f"{row}-{col}": True for row in ['A', 'B', 'C', 'D'] for col in range(1, 5)}
+    
+if 'ticket_num' not in st.session_state:
+    st.session_state.ticket_num = 1 # 첫 대기번호는 1번
 
-# 번역 버튼
-if st.button("번역하기"):
-    if text_to_translate.strip():
-        with st.spinner("번역 중... 잠시만 기다려주세요!"):
-            try:
-                # 번역 실행
-                eng_translation = GoogleTranslator(source='ko', target='en').translate(text_to_translate)
-                zh_translation = GoogleTranslator(source='ko', target='zh-CN').translate(text_to_translate)
-                ja_translation = GoogleTranslator(source='ko', target='ja').translate(text_to_translate)
+if 'my_ticket' not in st.session_state:
+    st.session_state.my_ticket = None
 
-                st.success("번역 완료!")
-                
-                # 결과 출력
-                st.subheader("🇺🇸 영어 (English)")
-                st.info(eng_translation)
-                
-                st.subheader("🇨🇳 중국어 (Chinese)")
-                st.info(zh_translation)
-                
-                st.subheader("🇯🇵 일본어 (Japanese)")
-                st.info(ja_translation)
-                
-            except Exception as e:
-                st.error(f"번역 중 오류가 발생했습니다: {e}")
-    else:
-        st.warning("먼저 번역할 텍스트를 입력해 줘!")
+# 2. 발급된 번호표 출력 구역
+if st.session_state.my_ticket:
+    st.success(f"🎟️ **발급 완료!** \n\n 대기 번호: **{st.session_state.my_ticket['ticket_num']}번** | 선택한 좌석: **{st.session_state.my_ticket['seat']}**")
+    st.markdown("---")
+
+# 3. 좌석 배치도 (버튼) 구현
+st.subheader("좌석 배치도")
+
+rows = ['A', 'B', 'C', 'D']
+cols = [1, 2, 3, 4]
+
+# 4x4 그리드 형태로 좌석 버튼 생성
+for r in rows:
+    # 4개의 열을 만듦
+    c1, c2, c3, c4 = st.columns(4)
+    columns_list = [c1, c2, c3, c4]
+    
+    for i, col_layout in enumerate(columns_list):
+        seat_id = f"{r}-{cols[i]}"
+        is_available = st.session_state.seats[seat_id]
+        
+        with col_layout:
+            if is_available:
+                # 빈자리일 경우 클릭 가능한 버튼 생성
+                if st.button(f"🪑 {seat_id}", key=f"btn_{seat_id}"):
+                    # 자리 상태를 '사용 중(False)'으로 변경
+                    st.session_state.seats[seat_id] = False
+                    # 번호표 정보 저장
+                    st.session_state.my_ticket = {'seat': seat_id, 'ticket_num': st.session_state.ticket_num}
+                    # 다음 사람을 위해 번호표 숫자 1 증가
+                    st.session_state.ticket_num += 1
+                    # 화면 새로고침하여 변경사항 적용
+                    st.rerun()
+            else:
+                # 이미 선택된 자리는 클릭할 수 없는(disabled) 버튼으로 표시
+                st.button(f"🚫 {seat_id} (완료)", key=f"btn_{seat_id}", disabled=True)
+
+st.markdown("---")
+
+# 4. (관리자용) 전체 초기화 버튼
+if st.button("🔄 전체 자리 초기화 (관리자용)"):
+    st.session_state.clear()
+    st.rerun()
